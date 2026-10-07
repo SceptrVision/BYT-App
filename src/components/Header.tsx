@@ -17,23 +17,40 @@ export const Header: React.FC = () => {
   } = useTimeBudget();
 
   const [isEditingTabs, setIsEditingTabs] = useState(false);
-  const [navTabsOrder, setNavTabsOrder] = useState<Array<'budget' | 'reports'>>(() => {
+  const [navTabsOrder, setNavTabsOrder] = useState<Array<'budget' | 'schedule' | 'reports'>>(() => {
     try {
-      const stored = localStorage.getItem('byt_nav_tabs_order');
+      const stored = localStorage.getItem('byt_nav_tabs_order_v2');
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length === 2 && parsed.includes('budget') && parsed.includes('reports')) {
+        if (
+          Array.isArray(parsed) &&
+          parsed.length === 3 &&
+          parsed.includes('budget') &&
+          parsed.includes('schedule') &&
+          parsed.includes('reports')
+        ) {
           return parsed;
         }
       }
     } catch {}
-    return ['budget', 'reports'];
+    return ['budget', 'schedule', 'reports'];
   });
 
-  const swapTabs = () => {
-    const newOrder: Array<'budget' | 'reports'> = [navTabsOrder[1], navTabsOrder[0]];
+  const moveTab = (index: number, direction: 'left' | 'right') => {
+    const targetIndex = direction === 'left' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= navTabsOrder.length) return;
+    const newOrder = [...navTabsOrder];
+    const temp = newOrder[index];
+    newOrder[index] = newOrder[targetIndex];
+    newOrder[targetIndex] = temp;
     setNavTabsOrder(newOrder);
-    localStorage.setItem('byt_nav_tabs_order', JSON.stringify(newOrder));
+    localStorage.setItem('byt_nav_tabs_order_v2', JSON.stringify(newOrder));
+  };
+
+  const getTabLabel = (tabKey: 'budget' | 'schedule' | 'reports') => {
+    if (tabKey === 'budget') return 'Daily Budget';
+    if (tabKey === 'schedule') return 'Schedule';
+    return 'Trends';
   };
 
   const activeCategory = categories.find((c) => c.id === timer.categoryId);
@@ -68,14 +85,25 @@ export const Header: React.FC = () => {
 
         {/* Zone 2: Navigation Links (Moveable / Customizable) */}
         <div className="flex items-center gap-1 sm:gap-2">
-          <nav className="flex items-center gap-1 sm:gap-4 text-sm font-medium">
-            {navTabsOrder.map((tabKey) => {
-              const isBudget = tabKey === 'budget';
-              const label = isBudget ? 'Daily Budget' : 'Trends';
+          <nav className="flex items-center gap-1 sm:gap-3 text-sm font-medium">
+            {navTabsOrder.map((tabKey, index) => {
+              const label = getTabLabel(tabKey);
               const isActive = activeTab === tabKey;
 
               return (
-                <div key={tabKey} className="flex items-center">
+                <div key={tabKey} className="flex items-center gap-1">
+                  {isEditingTabs && (
+                    <button
+                      type="button"
+                      disabled={index === 0}
+                      onClick={() => moveTab(index, 'left')}
+                      className="text-[10px] text-slate-400 hover:text-sky-400 disabled:opacity-20 disabled:hover:text-slate-400 px-1 py-0.5 rounded cursor-pointer transition-colors"
+                      title="Move tab left"
+                    >
+                      ←
+                    </button>
+                  )}
+
                   <button
                     onClick={() => setActiveTab(tabKey)}
                     className={`px-2.5 py-1 transition-colors relative cursor-pointer ${
@@ -89,6 +117,18 @@ export const Header: React.FC = () => {
                       <span className="absolute bottom-[-17px] left-0 right-0 h-0.5 bg-gradient-to-r from-emerald-500 to-sky-500 rounded-full" />
                     )}
                   </button>
+
+                  {isEditingTabs && (
+                    <button
+                      type="button"
+                      disabled={index === navTabsOrder.length - 1}
+                      onClick={() => moveTab(index, 'right')}
+                      className="text-[10px] text-slate-400 hover:text-sky-400 disabled:opacity-20 disabled:hover:text-slate-400 px-1 py-0.5 rounded cursor-pointer transition-colors"
+                      title="Move tab right"
+                    >
+                      →
+                    </button>
+                  )}
                 </div>
               );
             })}
@@ -96,23 +136,16 @@ export const Header: React.FC = () => {
 
           {/* Edit Tabs Layout Button */}
           {isEditingTabs ? (
-            <div className="flex items-center gap-1 ml-2 bg-slate-900 border border-slate-700/80 rounded-md px-1.5 py-0.5 animate-in fade-in duration-150">
-              <button
-                type="button"
-                onClick={swapTabs}
-                title="Swap tabs order"
-                className="text-xs text-sky-400 hover:text-sky-300 px-1.5 py-0.5 rounded flex items-center gap-1 cursor-pointer"
-              >
-                <ArrowLeftRight className="w-3 h-3" />
-                <span className="text-[11px]">Swap</span>
-              </button>
+            <div className="flex items-center gap-1 ml-2 bg-slate-900 border border-slate-700/80 rounded-md px-2 py-0.5 animate-in fade-in duration-150">
+              <span className="text-[10px] font-mono text-sky-400 mr-1">Reordering</span>
               <button
                 type="button"
                 onClick={() => setIsEditingTabs(false)}
-                title="Done editing tabs"
-                className="p-1 text-emerald-400 hover:text-emerald-300 rounded cursor-pointer"
+                title="Done editing tab layout"
+                className="p-1 text-emerald-400 hover:text-emerald-300 rounded cursor-pointer flex items-center gap-1 text-xs"
               >
-                <Check className="w-3 h-3" />
+                <Check className="w-3.5 h-3.5" />
+                <span className="text-[11px] font-semibold">Done</span>
               </button>
             </div>
           ) : (

@@ -17,6 +17,8 @@ import { EnvelopeActivitiesModal } from './components/EnvelopeActivitiesModal';
 import { AssignBudgetModal } from './components/AssignBudgetModal';
 import { CalendarPickerModal } from './components/CalendarPickerModal';
 import { SwitchTimerModal } from './components/SwitchTimerModal';
+import { ScheduleView } from './components/ScheduleView';
+import { ScheduleEventModal } from './components/ScheduleEventModal';
 
 const MainAppContent: React.FC = () => {
   const { activeTab } = useTimeBudget();
@@ -29,6 +31,7 @@ const MainAppContent: React.FC = () => {
       {/* Main Content Workspace */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
         {activeTab === 'budget' && <BudgetView />}
+        {activeTab === 'schedule' && <ScheduleView />}
         {activeTab === 'reports' && <ReportsView />}
       </main>
 
@@ -42,6 +45,7 @@ const MainAppContent: React.FC = () => {
       <AssignBudgetModal />
       <CalendarPickerModal />
       <SwitchTimerModal />
+      <ScheduleEventModal />
 
       {/* Footer */}
       <footer className="w-full border-t border-slate-900 bg-[#080b11] py-6 mt-12 text-center text-xs text-slate-500">

@@ -1,11 +1,12 @@
-import { Category, CategoryGroup, TimeEntry, DayBudgetData, AppSettings, SleepSchedule } from '../types';
+import { Category, CategoryGroup, TimeEntry, DayBudgetData, AppSettings, SleepSchedule, ScheduleEvent } from '../types';
 import { getTodayDateStr, shiftDate } from './dateUtils';
 
 export const DEFAULT_GROUPS: CategoryGroup[] = [
   { id: 'group-career', name: 'Work & Career', color: '#0284c7', order: 1 },
-  { id: 'group-health', name: 'Health & Vitality', color: '#10b981', order: 2 },
-  { id: 'group-life', name: 'Life & Essentials', color: '#f59e0b', order: 3 },
-  { id: 'group-joy', name: 'Joy & Connection', color: '#38bdf8', order: 4 },
+  { id: 'group-academics', name: 'Academics & Study', color: '#8b5cf6', order: 2 },
+  { id: 'group-health', name: 'Health & Vitality', color: '#10b981', order: 3 },
+  { id: 'group-life', name: 'Life & Essentials', color: '#f59e0b', order: 4 },
+  { id: 'group-joy', name: 'Joy & Connection', color: '#38bdf8', order: 5 },
 ];
 
 export const DEFAULT_SLEEP: SleepSchedule = {
@@ -18,14 +19,14 @@ export const DEFAULT_SLEEP: SleepSchedule = {
 };
 
 export const DEFAULT_CATEGORIES: Category[] = [
-  // Work & Career (6.5h)
+  // Work & Career (4.5h)
   {
     id: 'cat-deep-work',
     groupId: 'group-career',
     name: 'Deep Work & Building',
     color: '#0284c7',
     icon: 'Briefcase',
-    dailyTarget: 4.0,
+    dailyTarget: 2.5,
     targetType: 'daily_target',
   },
   {
@@ -34,7 +35,7 @@ export const DEFAULT_CATEGORIES: Category[] = [
     name: 'Meetings & Syncs',
     color: '#38bdf8',
     icon: 'Users',
-    dailyTarget: 1.5,
+    dailyTarget: 1.0,
     targetType: 'daily_target',
   },
   {
@@ -43,6 +44,26 @@ export const DEFAULT_CATEGORIES: Category[] = [
     name: 'Admin, Email & Comms',
     color: '#0ea5e9',
     icon: 'Mail',
+    dailyTarget: 1.0,
+    targetType: 'daily_target',
+  },
+
+  // Academics & Study (2.0h)
+  {
+    id: 'cat-physics',
+    groupId: 'group-academics',
+    name: 'Physics',
+    color: '#8b5cf6',
+    icon: 'Atom',
+    dailyTarget: 1.0,
+    targetType: 'daily_target',
+  },
+  {
+    id: 'cat-calculus',
+    groupId: 'group-academics',
+    name: 'Calculus',
+    color: '#a855f7',
+    icon: 'Calculator',
     dailyTarget: 1.0,
     targetType: 'daily_target',
   },
@@ -107,7 +128,7 @@ export const DEFAULT_CATEGORIES: Category[] = [
     targetType: 'daily_target',
   },
   // Dedicated Separate Sleep (8.0h) + Daily Buffer Cushion (1.5h)
-  // Total = 6.5 + 2.5 + 2.0 + 3.5 + 8.0 (sleep) + 1.5 (buffer) = 24.0 Hours exact zero-sum day!
+  // Total = 4.5 + 2.0 + 2.5 + 2.0 + 3.5 + 8.0 (sleep) + 1.5 (buffer) = 24.0 Hours exact zero-sum day!
 ];
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -119,6 +140,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
 export function generateSeedData(): {
   budgets: Record<string, DayBudgetData>;
   entries: TimeEntry[];
+  scheduleEvents: ScheduleEvent[];
 } {
   const today = getTodayDateStr();
   const yesterday = shiftDate(today, -1);
@@ -137,19 +159,84 @@ export function generateSeedData(): {
 
   const entries: TimeEntry[] = [
     // Today entries
-    { id: 'seed-t2', categoryId: 'cat-deep-work', date: today, duration: 3.5, note: 'Engine architecture & implementation', createdAt: Date.now() - 14400000 },
-    { id: 'seed-t3', categoryId: 'cat-meetings', date: today, duration: 1.5, note: 'Standup and client roadmap sync', createdAt: Date.now() - 7200000 },
-    { id: 'seed-t4', categoryId: 'cat-exercise', date: today, duration: 1.0, note: 'Cardio interval run', createdAt: Date.now() - 3600000 },
+    { id: 'seed-t1', categoryId: 'cat-physics', date: today, duration: 0.75, note: 'Physics problem set assignment', startTime: '15:00', endTime: '15:45', scheduleEventId: 'evt-today-3', createdAt: Date.now() - 5400000 },
+    { id: 'seed-t2', categoryId: 'cat-calculus', date: today, duration: 0.25, note: 'Calculus derivatives review', startTime: '15:45', endTime: '16:00', scheduleEventId: 'evt-today-3', createdAt: Date.now() - 5400000 },
+    { id: 'seed-t3', categoryId: 'cat-deep-work', date: today, duration: 2.5, note: 'Core algorithm implementation', startTime: '09:00', endTime: '11:30', scheduleEventId: 'evt-today-1', createdAt: Date.now() - 14400000 },
+    { id: 'seed-t4', categoryId: 'cat-admin-email', date: today, duration: 0.25, note: 'Morning inbox sprint', startTime: '11:30', endTime: '11:45', scheduleEventId: 'evt-today-quick', createdAt: Date.now() - 10800000 },
+    { id: 'seed-t5', categoryId: 'cat-meetings', date: today, duration: 1.25, note: 'Standup and client roadmap sync', startTime: '13:00', endTime: '14:15', scheduleEventId: 'evt-today-2', createdAt: Date.now() - 7200000 },
+    { id: 'seed-t6', categoryId: 'cat-exercise', date: today, duration: 0.75, note: 'Cardio interval run', startTime: '17:30', endTime: '18:15', scheduleEventId: 'evt-today-4', createdAt: Date.now() - 3600000 },
 
     // Yesterday entries
-    { id: 'seed-y2', categoryId: 'cat-deep-work', date: yesterday, duration: 4.0, note: 'Feature build and tests', createdAt: Date.now() - 90000000 },
+    { id: 'seed-y1', categoryId: 'cat-physics', date: yesterday, duration: 1.0, note: 'Physics lab writeup', createdAt: Date.now() - 85000000 },
+    { id: 'seed-y2', categoryId: 'cat-deep-work', date: yesterday, duration: 2.5, note: 'Feature build and tests', createdAt: Date.now() - 90000000 },
     { id: 'seed-y3', categoryId: 'cat-admin-email', date: yesterday, duration: 1.0, note: 'Inbox zero and messages', createdAt: Date.now() - 80000000 },
     { id: 'seed-y4', categoryId: 'cat-nutrition', date: yesterday, duration: 1.5, note: 'Healthy cooking & dinner', createdAt: Date.now() - 70000000 },
     { id: 'seed-y5', categoryId: 'cat-family', date: yesterday, duration: 1.5, note: 'Evening walk with family', createdAt: Date.now() - 60000000 },
     { id: 'seed-y6', categoryId: 'cat-leisure', date: yesterday, duration: 2.0, note: 'Reading and gaming', createdAt: Date.now() - 50000000 },
   ];
 
-  return { budgets, entries };
+  const scheduleEvents: ScheduleEvent[] = [
+    {
+      id: 'evt-today-1',
+      title: 'Deep Work & Architecture',
+      date: today,
+      startTime: '09:00',
+      endTime: '11:30',
+      durationMinutes: 150, // 2.5 hours - visibly spans across multiple hour grid rows
+      allocations: [{ envelopeId: 'cat-deep-work', minutes: 150 }],
+      notes: 'Focus on core system build',
+      createdAt: Date.now() - 14400000,
+    },
+    {
+      id: 'evt-today-quick',
+      title: 'Email Triage',
+      date: today,
+      startTime: '11:30',
+      endTime: '11:45',
+      durationMinutes: 15, // 15 minutes - compact block
+      allocations: [{ envelopeId: 'cat-admin-email', minutes: 15 }],
+      notes: 'Clear notifications and team inbox',
+      createdAt: Date.now() - 10800000,
+    },
+    {
+      id: 'evt-today-2',
+      title: 'Team Sync & Project Roadmap',
+      date: today,
+      startTime: '13:00',
+      endTime: '14:15',
+      durationMinutes: 75, // 1 hour 15 min
+      allocations: [{ envelopeId: 'cat-meetings', minutes: 75 }],
+      notes: 'Weekly team sprint review',
+      createdAt: Date.now() - 7200000,
+    },
+    {
+      id: 'evt-today-3',
+      title: 'Homework',
+      date: today,
+      startTime: '15:00',
+      endTime: '16:00',
+      durationMinutes: 60,
+      allocations: [
+        { envelopeId: 'cat-physics', minutes: 45 },
+        { envelopeId: 'cat-calculus', minutes: 15 },
+      ],
+      notes: '45m physics problem set + 15m calculus derivatives',
+      createdAt: Date.now() - 5400000,
+    },
+    {
+      id: 'evt-today-4',
+      title: 'Workout & Fitness Run',
+      date: today,
+      startTime: '17:30',
+      endTime: '18:15',
+      durationMinutes: 45, // 45 minutes - shows true 45m height
+      allocations: [{ envelopeId: 'cat-exercise', minutes: 45 }],
+      notes: '5k trail run and stretching',
+      createdAt: Date.now() - 3600000,
+    },
+  ];
+
+  return { budgets, entries, scheduleEvents };
 }
 
 const STORAGE_KEY_CATEGORIES = 'byt_categories_v2';
@@ -157,6 +244,8 @@ const STORAGE_KEY_GROUPS = 'byt_groups_v2';
 const STORAGE_KEY_BUDGETS = 'byt_budgets_v2';
 const STORAGE_KEY_ENTRIES = 'byt_entries_v2';
 const STORAGE_KEY_SETTINGS = 'byt_settings_v2';
+const STORAGE_KEY_SCHEDULE_EVENTS = 'byt_schedule_events_v2';
+const STORAGE_KEY_DELETED_CATEGORIES = 'byt_deleted_categories_v2';
 
 export function loadStoredData(): {
   categories: Category[];
@@ -164,6 +253,8 @@ export function loadStoredData(): {
   budgets: Record<string, DayBudgetData>;
   entries: TimeEntry[];
   settings: AppSettings;
+  scheduleEvents: ScheduleEvent[];
+  deletedCategories: Category[];
 } {
   try {
     const rawCategories = localStorage.getItem(STORAGE_KEY_CATEGORIES);
@@ -171,16 +262,22 @@ export function loadStoredData(): {
     const rawBudgets = localStorage.getItem(STORAGE_KEY_BUDGETS);
     const rawEntries = localStorage.getItem(STORAGE_KEY_ENTRIES);
     const rawSettings = localStorage.getItem(STORAGE_KEY_SETTINGS);
+    const rawScheduleEvents = localStorage.getItem(STORAGE_KEY_SCHEDULE_EVENTS);
+    const rawDeletedCategories = localStorage.getItem(STORAGE_KEY_DELETED_CATEGORIES);
+
+    const loadedDeletedCategories: Category[] = rawDeletedCategories ? JSON.parse(rawDeletedCategories) : [];
 
     if (!rawCategories || !rawBudgets) {
       const seed = generateSeedData();
-      saveData(DEFAULT_CATEGORIES, DEFAULT_GROUPS, seed.budgets, seed.entries, DEFAULT_SETTINGS);
+      saveData(DEFAULT_CATEGORIES, DEFAULT_GROUPS, seed.budgets, seed.entries, DEFAULT_SETTINGS, seed.scheduleEvents, []);
       return {
         categories: DEFAULT_CATEGORIES,
         groups: DEFAULT_GROUPS,
         budgets: seed.budgets,
         entries: seed.entries,
         settings: DEFAULT_SETTINGS,
+        scheduleEvents: seed.scheduleEvents,
+        deletedCategories: [],
       };
     }
 
@@ -189,6 +286,38 @@ export function loadStoredData(): {
     let loadedBudgets: Record<string, DayBudgetData> = rawBudgets ? JSON.parse(rawBudgets) : {};
     let loadedEntries: TimeEntry[] = rawEntries ? JSON.parse(rawEntries) : [];
     const loadedSettings: AppSettings = rawSettings ? JSON.parse(rawSettings) : DEFAULT_SETTINGS;
+    let loadedScheduleEvents: ScheduleEvent[] = rawScheduleEvents ? JSON.parse(rawScheduleEvents) : [];
+
+    if (!rawScheduleEvents || loadedScheduleEvents.length === 0) {
+      loadedScheduleEvents = generateSeedData().scheduleEvents;
+    }
+
+    // Ensure Academics group & Physics/Calculus envelopes exist
+    if (!loadedGroups.some((g) => g.id === 'group-academics')) {
+      loadedGroups.splice(1, 0, { id: 'group-academics', name: 'Academics & Study', color: '#8b5cf6', order: 2 });
+    }
+    if (!loadedCategories.some((c) => c.id === 'cat-physics')) {
+      loadedCategories.push(
+        {
+          id: 'cat-physics',
+          groupId: 'group-academics',
+          name: 'Physics',
+          color: '#8b5cf6',
+          icon: 'Atom',
+          dailyTarget: 1.0,
+          targetType: 'daily_target',
+        },
+        {
+          id: 'cat-calculus',
+          groupId: 'group-academics',
+          name: 'Calculus',
+          color: '#a855f7',
+          icon: 'Calculator',
+          dailyTarget: 1.0,
+          targetType: 'daily_target',
+        }
+      );
+    }
 
     // Strip legacy buffer envelope and group if present, and remove sleep from envelopes
     loadedCategories = loadedCategories.filter(
@@ -235,6 +364,8 @@ export function loadStoredData(): {
       budgets: loadedBudgets,
       entries: loadedEntries,
       settings: loadedSettings,
+      scheduleEvents: loadedScheduleEvents,
+      deletedCategories: loadedDeletedCategories,
     };
   } catch (err) {
     console.error('Error loading stored BYT data:', err);
@@ -245,6 +376,8 @@ export function loadStoredData(): {
       budgets: seed.budgets,
       entries: seed.entries,
       settings: DEFAULT_SETTINGS,
+      scheduleEvents: seed.scheduleEvents,
+      deletedCategories: [],
     };
   }
 }
@@ -254,7 +387,9 @@ export function saveData(
   groups: CategoryGroup[],
   budgets: Record<string, DayBudgetData>,
   entries: TimeEntry[],
-  settings: AppSettings
+  settings: AppSettings,
+  scheduleEvents?: ScheduleEvent[],
+  deletedCategories?: Category[]
 ) {
   try {
     localStorage.setItem(STORAGE_KEY_CATEGORIES, JSON.stringify(categories));
@@ -262,6 +397,12 @@ export function saveData(
     localStorage.setItem(STORAGE_KEY_BUDGETS, JSON.stringify(budgets));
     localStorage.setItem(STORAGE_KEY_ENTRIES, JSON.stringify(entries));
     localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify(settings));
+    if (scheduleEvents) {
+      localStorage.setItem(STORAGE_KEY_SCHEDULE_EVENTS, JSON.stringify(scheduleEvents));
+    }
+    if (deletedCategories) {
+      localStorage.setItem(STORAGE_KEY_DELETED_CATEGORIES, JSON.stringify(deletedCategories));
+    }
   } catch (err) {
     console.error('Failed to save data to localStorage:', err);
   }

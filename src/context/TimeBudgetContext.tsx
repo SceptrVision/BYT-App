@@ -9,6 +9,8 @@ import {
   TimerSession,
   SleepSchedule,
   BUFFER_ID,
+  ScheduleEvent,
+  EventEnvelopeSplit,
 } from '../types';
 import {
   loadStoredData,
@@ -19,7 +21,14 @@ import {
   DEFAULT_SLEEP,
   generateSeedData,
 } from '../utils/storage';
-import { getTodayDateStr, shiftDate } from '../utils/dateUtils';
+import {
+  getTodayDateStr,
+  shiftDate,
+  timeToMinutes,
+  minutesToTime,
+  calculateDurationMinutes,
+  eventsOverlap,
+} from '../utils/dateUtils';
 
 interface TimeBudgetContextType {
   // Navigation & tabs
@@ -28,15 +37,17 @@ interface TimeBudgetContextType {
   goToPreviousDay: () => void;
   goToNextDay: () => void;
   goToToday: () => void;
-  activeTab: 'budget' | 'ledger' | 'reports';
-  setActiveTab: (tab: 'budget' | 'ledger' | 'reports') => void;
+  activeTab: 'budget' | 'schedule' | 'reports';
+  setActiveTab: (tab: 'budget' | 'schedule' | 'reports') => void;
 
   // State data
   categories: Category[];
+  deletedCategories: Category[];
   groups: CategoryGroup[];
   budgets: Record<string, DayBudgetData>;
   entries: TimeEntry[];
   settings: AppSettings;
+  scheduleEvents: ScheduleEvent[];
 
   // Dedicated Daily Buffer (First-Class System Margin)
   dayBuffer: number;
@@ -167,6 +178,22 @@ interface TimeBudgetContextType {
   isCopyWeekModalOpen: boolean;
   setIsCopyWeekModalOpen: (open: boolean) => void;
   confirmCopyWeek: () => void;
+
+  // Schedule / Calendar Features
+  addScheduleEvent: (eventData: Omit<ScheduleEvent, 'id' | 'createdAt'>) => ScheduleEvent;
+  editScheduleEvent: (id: string, updates: Partial<ScheduleEvent>) => void;
+  deleteScheduleEvent: (id: string) => void;
+  moveScheduleEvent: (id: string, newDate: string, newStartTime?: string, newEndTime?: string) => void;
+  getScheduleOverlaps: (date?: string) => Array<{ eventA: ScheduleEvent; eventB: ScheduleEvent }>;
+  getUnderfundedEvents: (date?: string) => Array<{ event: ScheduleEvent; unassignedMinutes: number }>;
+
+  // Schedule Event Modal
+  isScheduleEventModalOpen: boolean;
+  scheduleEventToEdit: ScheduleEvent | null;
+  scheduleEventPresetDate?: string;
+  scheduleEventPresetStartTime?: string;
+  openScheduleEventModal: (event?: ScheduleEvent, presetDate?: string, presetStartTime?: string) => void;
+  closeScheduleEventModal: () => void;
 }
 
 const TimeBudgetContext = createContext<TimeBudgetContextType | undefined>(undefined);
@@ -174,14 +201,16 @@ const TimeBudgetContext = createContext<TimeBudgetContextType | undefined>(undef
 export const TimeBudgetProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [initialData] = useState(() => loadStoredData());
   const [categories, setCategories] = useState<Category[]>(initialData.categories);
+  const [deletedCategories, setDeletedCategories] = useState<Category[]>(initialData.deletedCategories || []);
   const [groups, setGroups] = useState<CategoryGroup[]>(initialData.groups);
   const [budgets, setBudgets] = useState<Record<string, DayBudgetData>>(initialData.budgets);
   const [entries, setEntries] = useState<TimeEntry[]>(initialData.entries);
   const [settings, setSettings] = useState<AppSettings>(initialData.settings);
+  const [scheduleEvents, setScheduleEvents] = useState<ScheduleEvent[]>(initialData.scheduleEvents || []);
 
   // Active day & view
   const [currentDate, setCurrentDate] = useState<string>(() => getTodayDateStr());
-  const [activeTab, setActiveTab] = useState<'budget' | 'ledger' | 'reports'>('budget');
+  const [activeTab, setActiveTab] = useState<'budget' | 'schedule' | 'reports'>('budget');
 
   // Modals
   const [isLogModalOpen, setIsLogModalOpen] = useState(false);
@@ -209,6 +238,12 @@ export const TimeBudgetProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   // Copy Week Confirmation Modal
   const [isCopyWeekModalOpen, setIsCopyWeekModalOpen] = useState(false);
+
+  // Schedule Event Modal
+  const [isScheduleEventModalOpen, setIsScheduleEventModalOpen] = useState(false);
+  const [scheduleEventToEdit, setScheduleEventToEdit] = useState<ScheduleEvent | null>(null);
+  const [scheduleEventPresetDate, setScheduleEventPresetDate] = useState<string | undefined>(undefined);
+  const [scheduleEventPresetStartTime, setScheduleEventPresetStartTime] = useState<string | undefined>(undefined);
 
   // Timer
   const [timer, setTimer] = useState<TimerSession>({
@@ -240,8 +275,8 @@ export const TimeBudgetProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   }, [timer.isRunning, timer.startTime]);
 
   useEffect(() => {
-    saveData(categories, groups, budgets, entries, settings);
-  }, [categories, groups, budgets, entries, settings]);
+    saveData(categories, groups, budgets, entries, settings, scheduleEvents, deletedCategories);
+  }, [categories, groups, budgets, entries, settings, scheduleEvents, deletedCategories]);
 
   // Current day budget allocations
   const dayBudget = useMemo(() => {
@@ -663,6 +698,209 @@ export const TimeBudgetProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setEntries((prev) => prev.filter((e) => e.id !== id));
   }, []);
 
+  // Schedule / Calendar Events
+  const addScheduleEvent = useCallback(
+    (eventData: Omit<ScheduleEvent, 'id' | 'createdAt'>) => {
+      const durationMinutes = calculateDurationMinutes(eventData.startTime, eventData.endTime);
+      const newId = `evt-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+      const newEvent: ScheduleEvent = {
+        ...eventData,
+        id: newId,
+        durationMinutes,
+        createdAt: Date.now(),
+      };
+
+      setScheduleEvents((prev) => [...prev, newEvent]);
+
+      // Connect to envelopes & buffer
+      if (newEvent.allocations && newEvent.allocations.length > 0) {
+        const newEntries: TimeEntry[] = [];
+        newEvent.allocations.forEach((alloc, idx) => {
+          if (alloc.envelopeId === BUFFER_ID) {
+            const bufferHours = Math.round((alloc.minutes / 60) * 10) / 10;
+            setBudgets((prev) => {
+              const currentData = prev[newEvent.date] || { allocations: {}, buffer: 1.5 };
+              const prevUsed = currentData.bufferUsed || 0;
+              return {
+                ...prev,
+                [newEvent.date]: {
+                  ...currentData,
+                  buffer: Math.max(0, Math.round(((currentData.buffer ?? 1.5) - bufferHours) * 10) / 10),
+                  bufferUsed: Math.round((prevUsed + bufferHours) * 10) / 10,
+                },
+              };
+            });
+          } else {
+            const durationHours = Math.round((alloc.minutes / 60) * 10) / 10;
+            if (durationHours > 0) {
+              newEntries.push({
+                id: `entry-${newId}-${idx}`,
+                categoryId: alloc.envelopeId,
+                date: newEvent.date,
+                duration: durationHours,
+                startTime: newEvent.startTime,
+                endTime: newEvent.endTime,
+                scheduleEventId: newId,
+                note: newEvent.title,
+                createdAt: Date.now() + idx,
+              });
+            }
+          }
+        });
+        if (newEntries.length > 0) {
+          setEntries((prev) => [...newEntries, ...prev]);
+        }
+      }
+
+      return newEvent;
+    },
+    []
+  );
+
+  const editScheduleEvent = useCallback(
+    (id: string, updates: Partial<ScheduleEvent>) => {
+      setScheduleEvents((prev) =>
+        prev.map((ev) => {
+          if (ev.id !== id) return ev;
+          const updated = { ...ev, ...updates };
+          if (updates.startTime || updates.endTime) {
+            updated.durationMinutes = calculateDurationMinutes(updated.startTime, updated.endTime);
+          }
+          return updated;
+        })
+      );
+
+      // Re-sync linked TimeEntries
+      setEntries((prev) => {
+        const clean = prev.filter((e) => e.scheduleEventId !== id);
+        const target = scheduleEvents.find((e) => e.id === id);
+        if (!target) return clean;
+        const merged = { ...target, ...updates };
+        const newEntries: TimeEntry[] = [];
+        (merged.allocations || []).forEach((alloc, idx) => {
+          if (alloc.envelopeId !== BUFFER_ID) {
+            const durationHours = Math.round((alloc.minutes / 60) * 10) / 10;
+            if (durationHours > 0) {
+              newEntries.push({
+                id: `entry-${id}-${idx}-${Date.now()}`,
+                categoryId: alloc.envelopeId,
+                date: merged.date,
+                duration: durationHours,
+                startTime: merged.startTime,
+                endTime: merged.endTime,
+                scheduleEventId: id,
+                note: merged.title,
+                createdAt: Date.now() + idx,
+              });
+            }
+          }
+        });
+        return [...newEntries, ...clean];
+      });
+    },
+    [scheduleEvents]
+  );
+
+  const deleteScheduleEvent = useCallback((id: string) => {
+    setScheduleEvents((prev) => prev.filter((ev) => ev.id !== id));
+    setEntries((prev) => prev.filter((e) => e.scheduleEventId !== id));
+  }, []);
+
+  const moveScheduleEvent = useCallback(
+    (id: string, newDate: string, newStartTime?: string, newEndTime?: string) => {
+      setScheduleEvents((prev) =>
+        prev.map((ev) => {
+          if (ev.id !== id) return ev;
+          const updatedDate = newDate || ev.date;
+          const updatedStart = newStartTime || ev.startTime;
+          const updatedEnd = newEndTime || ev.endTime;
+          const durationMinutes = calculateDurationMinutes(updatedStart, updatedEnd);
+          return {
+            ...ev,
+            date: updatedDate,
+            startTime: updatedStart,
+            endTime: updatedEnd,
+            durationMinutes,
+          };
+        })
+      );
+      setEntries((prev) =>
+        prev.map((e) => {
+          if (e.scheduleEventId !== id) return e;
+          return {
+            ...e,
+            date: newDate,
+            startTime: newStartTime || e.startTime,
+            endTime: newEndTime || e.endTime,
+          };
+        })
+      );
+    },
+    []
+  );
+
+  const getScheduleOverlaps = useCallback(
+    (dateToCheck?: string) => {
+      const targetDate = dateToCheck || currentDate;
+      const dayEvts = scheduleEvents.filter((e) => e.date === targetDate);
+      const conflicts: Array<{ eventA: ScheduleEvent; eventB: ScheduleEvent }> = [];
+
+      for (let i = 0; i < dayEvts.length; i++) {
+        for (let j = i + 1; j < dayEvts.length; j++) {
+          if (
+            eventsOverlap(
+              dayEvts[i].startTime,
+              dayEvts[i].endTime,
+              dayEvts[j].startTime,
+              dayEvts[j].endTime
+            )
+          ) {
+            conflicts.push({ eventA: dayEvts[i], eventB: dayEvts[j] });
+          }
+        }
+      }
+      return conflicts;
+    },
+    [scheduleEvents, currentDate]
+  );
+
+  const getUnderfundedEvents = useCallback(
+    (dateToCheck?: string) => {
+      const targetDate = dateToCheck || currentDate;
+      const dayEvts = scheduleEvents.filter((e) => e.date === targetDate);
+      const underfunded: Array<{ event: ScheduleEvent; unassignedMinutes: number }> = [];
+
+      dayEvts.forEach((ev) => {
+        const totalAllocated = (ev.allocations || []).reduce((sum, a) => sum + (a.minutes || 0), 0);
+        if (totalAllocated < ev.durationMinutes) {
+          underfunded.push({
+            event: ev,
+            unassignedMinutes: ev.durationMinutes - totalAllocated,
+          });
+        }
+      });
+      return underfunded;
+    },
+    [scheduleEvents, currentDate]
+  );
+
+  const openScheduleEventModal = useCallback(
+    (event?: ScheduleEvent, presetDate?: string, presetStartTime?: string) => {
+      setScheduleEventToEdit(event || null);
+      setScheduleEventPresetDate(presetDate || currentDate);
+      setScheduleEventPresetStartTime(presetStartTime || '09:00');
+      setIsScheduleEventModalOpen(true);
+    },
+    [currentDate]
+  );
+
+  const closeScheduleEventModal = useCallback(() => {
+    setIsScheduleEventModalOpen(false);
+    setScheduleEventToEdit(null);
+    setScheduleEventPresetDate(undefined);
+    setScheduleEventPresetStartTime(undefined);
+  }, []);
+
   // Custom Category & Group Management
   const addCategory = useCallback((cat: Omit<Category, 'id'>) => {
     const id = `cat-custom-${Date.now()}`;
@@ -691,8 +929,20 @@ export const TimeBudgetProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   }, []);
 
   const deleteCategory = useCallback((id: string, deleteEntries: boolean = false) => {
+    const today = getTodayDateStr();
+    const catToDelete = categories.find((c) => c.id === id);
+
+    // Save to deletedCategories so past history can display its name with "(Deleted)"
+    if (catToDelete) {
+      setDeletedCategories((prev) => {
+        if (prev.some((c) => c.id === id)) return prev;
+        return [...prev, { ...catToDelete, isDeleted: true, deletedAt: Date.now() }];
+      });
+    }
+
     setCategories((prev) => prev.filter((c) => c.id !== id));
-    // Clean up allocations across all days so hours return to Ready to Assign
+
+    // Clean up allocations across current and future days so hours return to Ready to Assign
     setBudgets((prev) => {
       const updated = { ...prev };
       Object.keys(updated).forEach((dateKey) => {
@@ -708,9 +958,37 @@ export const TimeBudgetProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       return updated;
     });
 
-    if (deleteEntries) {
-      setEntries((prev) => prev.filter((e) => e.categoryId !== id));
-    }
+    // Schedule Events:
+    // If it's today: Remove that allocation so the minutes become UNASSIGNED (do NOT default to buffer!)
+    // If it was yesterday or past date: Keep it marked as the old envelope (which will display as "(Deleted)")
+    setScheduleEvents((prevEvents) =>
+      prevEvents.map((ev) => {
+        const hasAlloc = (ev.allocations || []).some((a) => a.envelopeId === id);
+        if (!hasAlloc) return ev;
+
+        if (ev.date === today) {
+          const newAllocations = (ev.allocations || []).filter((a) => a.envelopeId !== id);
+          return {
+            ...ev,
+            allocations: newAllocations,
+          };
+        }
+
+        // Yesterday / past dates: keep allocation intact
+        return ev;
+      })
+    );
+
+    // Entries:
+    setEntries((prev) =>
+      prev.filter((e) => {
+        if (e.categoryId !== id) return true;
+        // If it's today: remove entry so it is no longer logged to deleted envelope
+        if (e.date === today) return false;
+        // If it was yesterday / past dates: keep it for historical records
+        return true;
+      })
+    );
 
     // Stop active timer if it was running on this deleted category
     setTimer((prev) => {
@@ -725,7 +1003,7 @@ export const TimeBudgetProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       }
       return prev;
     });
-  }, []);
+  }, [categories]);
 
   const promptDeleteCategory = useCallback((category: Category) => {
     setEnvelopeToDelete(category);
@@ -846,6 +1124,7 @@ export const TimeBudgetProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setBudgets(seed.budgets);
     setEntries(seed.entries);
     setSettings(DEFAULT_SETTINGS);
+    setScheduleEvents(seed.scheduleEvents);
     setCurrentDate(getTodayDateStr());
   }, []);
 
@@ -859,9 +1138,10 @@ export const TimeBudgetProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       budgets,
       entries,
       settings,
+      scheduleEvents,
     };
     return JSON.stringify(dump, null, 2);
-  }, [categories, groups, budgets, entries, settings]);
+  }, [categories, groups, budgets, entries, settings, scheduleEvents]);
 
   const importData = useCallback((jsonStr: string): boolean => {
     try {
@@ -872,6 +1152,7 @@ export const TimeBudgetProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         setBudgets(parsed.budgets);
         if (parsed.entries) setEntries(parsed.entries);
         if (parsed.settings) setSettings(parsed.settings);
+        if (parsed.scheduleEvents) setScheduleEvents(parsed.scheduleEvents);
         return true;
       }
       return false;
@@ -985,12 +1266,23 @@ export const TimeBudgetProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
       if (action === 'log') {
         if (timer.categoryId && timer.elapsedSeconds >= 10) {
-          const durationHours = Math.round((timer.elapsedSeconds / 3600) * 10) / 10 || 0.1;
-          addTimeEntry({
-            categoryId: timer.categoryId,
+          const durationMins = Math.max(1, Math.round(timer.elapsedSeconds / 60));
+          const now = new Date();
+          const curTotalMins = now.getHours() * 60 + now.getMinutes();
+          const startMins = Math.max(0, curTotalMins - durationMins);
+          const startTime = minutesToTime(startMins);
+          const endTime = minutesToTime(curTotalMins);
+          const catName = categories.find((c) => c.id === timer.categoryId)?.name || 'Envelope';
+
+          addScheduleEvent({
+            title: timer.note || `Live Focus: ${catName}`,
             date: currentDate,
-            duration: durationHours,
-            note: timer.note || 'Timed session',
+            startTime,
+            endTime,
+            durationMinutes: durationMins,
+            allocations: [{ envelopeId: timer.categoryId, minutes: durationMins }],
+            notes: timer.note || 'Live stopwatch session',
+            isLiveSession: true,
           });
         }
       }
@@ -1084,13 +1376,23 @@ export const TimeBudgetProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       return;
     }
 
-    const durationHours = Math.round((timer.elapsedSeconds / 3600) * 10) / 10 || 0.1;
+    const durationMins = Math.max(1, Math.round(timer.elapsedSeconds / 60));
+    const now = new Date();
+    const curTotalMins = now.getHours() * 60 + now.getMinutes();
+    const startMins = Math.max(0, curTotalMins - durationMins);
+    const startTime = minutesToTime(startMins);
+    const endTime = minutesToTime(curTotalMins);
+    const catName = categories.find((c) => c.id === timer.categoryId)?.name || 'Envelope';
 
-    addTimeEntry({
-      categoryId: timer.categoryId,
+    addScheduleEvent({
+      title: timer.note || `Live Focus: ${catName}`,
       date: currentDate,
-      duration: durationHours,
-      note: timer.note || 'Timed session',
+      startTime,
+      endTime,
+      durationMinutes: durationMins,
+      allocations: [{ envelopeId: timer.categoryId, minutes: durationMins }],
+      notes: timer.note || 'Live stopwatch session',
+      isLiveSession: true,
     });
 
     setTimer({
@@ -1100,7 +1402,7 @@ export const TimeBudgetProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       startTime: null,
       elapsedSeconds: 0,
     });
-  }, [timer, currentDate, addTimeEntry]);
+  }, [timer, currentDate, categories, addScheduleEvent]);
 
   const cancelTimer = useCallback(() => {
     setTimer({
@@ -1164,6 +1466,7 @@ export const TimeBudgetProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         activeTab,
         setActiveTab,
         categories,
+        deletedCategories,
         groups,
         budgets,
         entries,
@@ -1256,6 +1559,19 @@ export const TimeBudgetProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         isCopyWeekModalOpen,
         setIsCopyWeekModalOpen,
         confirmCopyWeek,
+        scheduleEvents,
+        addScheduleEvent,
+        editScheduleEvent,
+        deleteScheduleEvent,
+        moveScheduleEvent,
+        getScheduleOverlaps,
+        getUnderfundedEvents,
+        isScheduleEventModalOpen,
+        scheduleEventToEdit,
+        scheduleEventPresetDate,
+        scheduleEventPresetStartTime,
+        openScheduleEventModal,
+        closeScheduleEventModal,
       }}
     >
       {children}

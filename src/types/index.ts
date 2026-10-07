@@ -10,6 +10,8 @@ export interface Category {
   targetType: TargetType;
   isEssential?: boolean; // e.g. Sleep
   isCustom?: boolean;    // user-created envelope
+  isDeleted?: boolean;   // marked as deleted but preserved for past history
+  deletedAt?: number;
 }
 
 export interface CategoryGroup {
@@ -26,6 +28,27 @@ export interface TimeEntry {
   date: string;   // "YYYY-MM-DD"
   duration: number; // in hours (e.g. 1.5 = 1 hour 30 mins)
   note: string;
+  createdAt: number;
+  startTime?: string; // "HH:MM" 24h e.g. "09:00"
+  endTime?: string;   // "HH:MM" 24h e.g. "10:30"
+  scheduleEventId?: string; // linked schedule event id if created from scheduler
+}
+
+export interface EventEnvelopeSplit {
+  envelopeId: string; // categoryId or BUFFER_ID
+  minutes: number;    // duration assigned from this envelope in minutes (e.g. 45)
+}
+
+export interface ScheduleEvent {
+  id: string;
+  title: string;              // e.g. "Homework", "Physics & Calculus", "Gym"
+  date: string;               // "YYYY-MM-DD"
+  startTime: string;          // "HH:MM" 24h format e.g. "14:00"
+  endTime: string;            // "HH:MM" 24h format e.g. "15:00"
+  durationMinutes: number;    // Total duration in minutes (e.g. 60)
+  allocations: EventEnvelopeSplit[]; // Splits across envelopes / buffer
+  notes?: string;
+  isLiveSession?: boolean;    // Was created via live timer session
   createdAt: number;
 }
 

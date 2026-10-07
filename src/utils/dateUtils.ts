@@ -179,3 +179,148 @@ export function getWeekDaysForDate(dateStr: string): Array<{
 
   return result;
 }
+
+/**
+ * Converts "HH:MM" (24h) to total minutes from start of day (0 - 1440)
+ */
+export function timeToMinutes(timeStr: string): number {
+  if (!timeStr) return 0;
+  const [hStr, mStr] = timeStr.split(':');
+  const h = parseInt(hStr, 10) || 0;
+  const m = parseInt(mStr, 10) || 0;
+  return h * 60 + m;
+}
+
+/**
+ * Converts total minutes from start of day to "HH:MM" (24h)
+ */
+export function minutesToTime(totalMinutes: number): string {
+  const normalized = Math.max(0, Math.min(1439, Math.round(totalMinutes)));
+  const h = Math.floor(normalized / 60);
+  const m = normalized % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+/**
+ * Calculates duration in minutes between start and end time (handling midnight if end < start)
+ */
+export function calculateDurationMinutes(startTime: string, endTime: string): number {
+  const startMin = timeToMinutes(startTime);
+  const endMin = timeToMinutes(endTime);
+  if (endMin >= startMin) {
+    return endMin - startMin;
+  }
+  // Crosses midnight
+  return (1440 - startMin) + endMin;
+}
+
+/**
+ * Checks whether two time intervals overlap (same day)
+ */
+export function eventsOverlap(
+  startA: string,
+  endA: string,
+  startB: string,
+  endB: string
+): boolean {
+  const sA = timeToMinutes(startA);
+  const eA = timeToMinutes(endA);
+  const sB = timeToMinutes(startB);
+  const eB = timeToMinutes(endB);
+
+  // If start is same as end, consider it 0-length
+  if (sA >= eA || sB >= eB) return false;
+
+  return sA < eB && sB < eA;
+}
+
+/**
+ * Returns formatted month and year (e.g. "October 2026")
+ */
+export function formatMonthYear(year: number, monthIndex: number): string {
+  const d = new Date(year, monthIndex, 1);
+  return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+}
+
+export interface MonthGridDay {
+  dateStr: string;
+  dayNumber: number;
+  isCurrentMonth: boolean;
+  isToday: boolean;
+}
+
+/**
+ * Generates calendar grid for a given year and month (0-indexed month)
+ */
+export function getMonthGrid(year: number, monthIndex: number): MonthGridDay[] {
+  const firstDayOfMonth = new Date(year, monthIndex, 1);
+  const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+  const startingDayOfWeek = firstDayOfMonth.getDay(); // 0 = Sunday
+
+  const todayStr = getTodayDateStr();
+  const grid: MonthGridDay[] = [];
+
+  // Padding days from previous month
+  const prevMonthLastDate = new Date(year, monthIndex, 0).getDate();
+  for (let i = startingDayOfWeek - 1; i >= 0; i--) {
+    const d = prevMonthLastDate - i;
+    const prevDate = new Date(year, monthIndex - 1, d);
+    const y = prevDate.getFullYear();
+    const m = String(prevDate.getMonth() + 1).padStart(2, '0');
+    const day = String(prevDate.getDate()).padStart(2, '0');
+    const dateStr = `${y}-${m}-${day}`;
+    grid.push({
+      dateStr,
+      dayNumber: d,
+      isCurrentMonth: false,
+      isToday: dateStr === todayStr,
+    });
+  }
+
+  // Days in current month
+  for (let d = 1; d <= daysInMonth; d++) {
+    const m = String(monthIndex + 1).padStart(2, '0');
+    const day = String(d).padStart(2, '0');
+    const dateStr = `${year}-${m}-${day}`;
+    grid.push({
+      dateStr,
+      dayNumber: d,
+      isCurrentMonth: true,
+      isToday: dateStr === todayStr,
+    });
+  }
+
+  // Padding days to fill out final week to 35 or 42 cells
+  const remainingCells = (7 - (grid.length % 7)) % 7;
+  for (let i = 1; i <= remainingCells; i++) {
+    const nextDate = new Date(year, monthIndex + 1, i);
+    const y = nextDate.getFullYear();
+    const m = String(nextDate.getMonth() + 1).padStart(2, '0');
+    const day = String(nextDate.getDate()).padStart(2, '0');
+    const dateStr = `${y}-${m}-${day}`;
+    grid.push({
+      dateStr,
+      dayNumber: i,
+      isCurrentMonth: false,
+      isToday: dateStr === todayStr,
+    });
+  }
+
+  return grid;
+}
+
+/**
+ * Formats minutes into "-h -min" format (e.g. 210 -> "3h 30min", 60 -> "1h", 45 -> "45min")
+ */
+export function formatMinutesHMin(minutes: number): string {
+  if (!minutes || minutes <= 0) return '0min';
+  const h = Math.floor(minutes / 60);
+  const m = Math.round(minutes % 60);
+  if (h > 0 && m > 0) {
+    return `${h}h ${m}min`;
+  }
+  if (h > 0) {
+    return `${h}h`;
+  }
+  return `${m}min`;
+}
