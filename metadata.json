@@ -1,0 +1,6 @@
+{
+  "name": "Chronvelope - Zero-Sum Weekly Time Budgeting",
+  "description": "Treat time like currency. Give every hour a job, budget weekly envelopes, track actual hours, and roll with the punches.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
