@@ -34,6 +34,7 @@ export interface SleepSchedule {
   bedtime: string;          // "HH:MM" e.g. "23:00"
   wakeTime: string;         // "HH:MM" e.g. "07:00"
   targetHours: number;      // Calculated hours from bedtime to wakeTime (e.g. 8.0)
+  targetSleepHours: number; // Configured target for hours slept (e.g. 8.0h)
   loggedHours?: number;     // Logged sleep today
 }
 

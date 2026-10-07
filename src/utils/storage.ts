@@ -13,6 +13,7 @@ export const DEFAULT_SLEEP: SleepSchedule = {
   bedtime: '23:00',
   wakeTime: '07:00',
   targetHours: 8.0,
+  targetSleepHours: 8.0,
   loggedHours: 8.0,
 };
 
@@ -219,6 +220,8 @@ export function loadStoredData(): {
         }
         if (!dayData.sleep) {
           dayData.sleep = { ...DEFAULT_SLEEP };
+        } else if (typeof dayData.sleep.targetSleepHours !== 'number') {
+          dayData.sleep.targetSleepHours = dayData.sleep.targetHours || 8.0;
         }
         if (!dayData.categoryDirectBudgets) {
           dayData.categoryDirectBudgets = {};

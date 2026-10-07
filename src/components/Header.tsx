@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useTimeBudget } from '../context/TimeBudgetContext';
-import { Plus, Settings, Play, Pause, FolderPlus } from 'lucide-react';
+import { Plus, Settings, Play, Pause, FolderPlus, ArrowLeftRight, Check, SlidersHorizontal } from 'lucide-react';
 
 export const Header: React.FC = () => {
   const {
@@ -15,6 +15,26 @@ export const Header: React.FC = () => {
     stopAndLogTimer,
     categories,
   } = useTimeBudget();
+
+  const [isEditingTabs, setIsEditingTabs] = useState(false);
+  const [navTabsOrder, setNavTabsOrder] = useState<Array<'budget' | 'reports'>>(() => {
+    try {
+      const stored = localStorage.getItem('byt_nav_tabs_order');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length === 2 && parsed.includes('budget') && parsed.includes('reports')) {
+          return parsed;
+        }
+      }
+    } catch {}
+    return ['budget', 'reports'];
+  });
+
+  const swapTabs = () => {
+    const newOrder: Array<'budget' | 'reports'> = [navTabsOrder[1], navTabsOrder[0]];
+    setNavTabsOrder(newOrder);
+    localStorage.setItem('byt_nav_tabs_order', JSON.stringify(newOrder));
+  };
 
   const activeCategory = categories.find((c) => c.id === timer.categoryId);
 
@@ -46,36 +66,66 @@ export const Header: React.FC = () => {
           </span>
         </div>
 
-        {/* Zone 2: Navigation Links */}
-        <nav className="flex items-center gap-1 sm:gap-5 text-sm font-medium">
-          <button
-            onClick={() => setActiveTab('budget')}
-            className={`px-2.5 py-1 transition-colors relative cursor-pointer ${
-              activeTab === 'budget'
-                ? 'text-emerald-400 font-semibold'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            Daily Budget
-            {activeTab === 'budget' && (
-              <span className="absolute bottom-[-17px] left-0 right-0 h-0.5 bg-gradient-to-r from-emerald-500 to-sky-500 rounded-full" />
-            )}
-          </button>
+        {/* Zone 2: Navigation Links (Moveable / Customizable) */}
+        <div className="flex items-center gap-1 sm:gap-2">
+          <nav className="flex items-center gap-1 sm:gap-4 text-sm font-medium">
+            {navTabsOrder.map((tabKey) => {
+              const isBudget = tabKey === 'budget';
+              const label = isBudget ? 'Daily Budget' : 'Trends';
+              const isActive = activeTab === tabKey;
 
-          <button
-            onClick={() => setActiveTab('reports')}
-            className={`px-2.5 py-1 transition-colors relative cursor-pointer ${
-              activeTab === 'reports'
-                ? 'text-emerald-400 font-semibold'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            Trends
-            {activeTab === 'reports' && (
-              <span className="absolute bottom-[-17px] left-0 right-0 h-0.5 bg-gradient-to-r from-emerald-500 to-sky-500 rounded-full" />
-            )}
-          </button>
-        </nav>
+              return (
+                <div key={tabKey} className="flex items-center">
+                  <button
+                    onClick={() => setActiveTab(tabKey)}
+                    className={`px-2.5 py-1 transition-colors relative cursor-pointer ${
+                      isActive
+                        ? 'text-emerald-400 font-semibold'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <span>{label}</span>
+                    {isActive && (
+                      <span className="absolute bottom-[-17px] left-0 right-0 h-0.5 bg-gradient-to-r from-emerald-500 to-sky-500 rounded-full" />
+                    )}
+                  </button>
+                </div>
+              );
+            })}
+          </nav>
+
+          {/* Edit Tabs Layout Button */}
+          {isEditingTabs ? (
+            <div className="flex items-center gap-1 ml-2 bg-slate-900 border border-slate-700/80 rounded-md px-1.5 py-0.5 animate-in fade-in duration-150">
+              <button
+                type="button"
+                onClick={swapTabs}
+                title="Swap tabs order"
+                className="text-xs text-sky-400 hover:text-sky-300 px-1.5 py-0.5 rounded flex items-center gap-1 cursor-pointer"
+              >
+                <ArrowLeftRight className="w-3 h-3" />
+                <span className="text-[11px]">Swap</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsEditingTabs(false)}
+                title="Done editing tabs"
+                className="p-1 text-emerald-400 hover:text-emerald-300 rounded cursor-pointer"
+              >
+                <Check className="w-3 h-3" />
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setIsEditingTabs(true)}
+              title="Edit tabs order (make tabs moveable)"
+              className="p-1 text-slate-500 hover:text-slate-300 hover:bg-slate-800/60 rounded cursor-pointer transition-colors ml-1"
+            >
+              <SlidersHorizontal className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
 
         {/* Zone 3: Actions & Live Stopwatch */}
         <div className="flex items-center gap-2 sm:gap-3">

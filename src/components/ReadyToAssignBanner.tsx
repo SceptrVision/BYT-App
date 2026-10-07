@@ -276,7 +276,7 @@ export const ReadyToAssignBanner: React.FC = () => {
               {isZeroSum && (
                 <div className="flex items-center gap-1.5 text-emerald-400">
                   <CheckCircle2 className="w-4 h-4 shrink-0" />
-                  <span>Rule 1 achieved: All 24 hours of today are budgeted!</span>
+                  <span>All 24 hours of today are budgeted!</span>
                 </div>
               )}
               {isUnderAllocated && (

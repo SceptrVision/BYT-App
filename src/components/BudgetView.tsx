@@ -18,6 +18,11 @@ import {
   AlertTriangle,
   Layers,
   ArrowRight,
+  ArrowUp,
+  ArrowDown,
+  Sliders,
+  MoveVertical,
+  RotateCcw,
 } from 'lucide-react';
 import { formatHours, parseHourInput } from '../utils/dateUtils';
 import { CategoryGroup } from '../types';
@@ -77,6 +82,44 @@ export const BudgetView: React.FC = () => {
   // Inline Direct Category Budget Editing
   const [editingDirectBudgetId, setEditingDirectBudgetId] = useState<string | null>(null);
   const [directBudgetInput, setDirectBudgetInput] = useState('');
+
+  // Customizable / Moveable Screen Layout State
+  const [isEditingLayout, setIsEditingLayout] = useState(false);
+  const [sectionOrder, setSectionOrder] = useState<Array<'sleep' | 'buffer' | 'categories'>>(() => {
+    try {
+      const stored = localStorage.getItem('byt_budget_section_order_v1');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (
+          Array.isArray(parsed) &&
+          parsed.length === 3 &&
+          parsed.includes('sleep') &&
+          parsed.includes('buffer') &&
+          parsed.includes('categories')
+        ) {
+          return parsed;
+        }
+      }
+    } catch {}
+    return ['sleep', 'buffer', 'categories'];
+  });
+
+  const moveSection = (index: number, direction: 'up' | 'down') => {
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= sectionOrder.length) return;
+    const newOrder = [...sectionOrder];
+    const temp = newOrder[index];
+    newOrder[index] = newOrder[targetIndex];
+    newOrder[targetIndex] = temp;
+    setSectionOrder(newOrder);
+    localStorage.setItem('byt_budget_section_order_v1', JSON.stringify(newOrder));
+  };
+
+  const resetSectionOrder = () => {
+    const defaultOrder: Array<'sleep' | 'buffer' | 'categories'> = ['sleep', 'buffer', 'categories'];
+    setSectionOrder(defaultOrder);
+    localStorage.setItem('byt_budget_section_order_v1', JSON.stringify(defaultOrder));
+  };
 
   const toggleGroup = (groupId: string) => {
     setCollapsedGroups((prev) => ({
@@ -153,41 +196,29 @@ export const BudgetView: React.FC = () => {
     setCategoryDirectBudget(groupId, parsed);
   };
 
-  return (
-    <div className="space-y-6">
-      {/* Ready To Assign Daily Header Banner */}
-      <ReadyToAssignBanner />
-
-      {/* Dedicated Separate Sleep & Rest Schedule Section */}
-      <SleepScheduleCard />
-
-      {/* Dedicated Daily Buffer Cushion Card */}
-      <DailyBufferCard />
-
-      {/* Main Daily Budget Table */}
-      <div className="bg-slate-900/60 border border-slate-800 rounded-xl overflow-hidden shadow-sm">
-        
-        {/* Table Column Headers & Top Actions */}
-        <div className="py-3 px-4 bg-slate-900 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <div className="flex items-center gap-3">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-300">
-              Envelopes & Categories
-            </span>
-            <button
-              onClick={() => setIsAddingGroup(true)}
-              className="text-xs text-sky-400 hover:text-sky-300 flex items-center gap-1 font-medium px-2 py-0.5 rounded bg-sky-950/50 border border-sky-800/60 hover:bg-sky-900/50 transition-colors cursor-pointer"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>New Category</span>
-            </button>
-          </div>
-
-          <div className="hidden md:flex items-center gap-6 shrink-0 text-xs font-semibold uppercase tracking-wider text-slate-400 pr-8">
-            <div className="w-24 text-right">Budgeted Today</div>
-            <div className="w-20 text-right">Logged Today</div>
-            <div className="w-28 text-right">Available</div>
-          </div>
+  const renderCategoriesTable = () => (
+    <div className="bg-slate-900/60 border border-slate-800 rounded-xl overflow-hidden shadow-sm">
+      {/* Table Column Headers & Top Actions */}
+      <div className="py-3 px-4 bg-slate-900 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div className="flex items-center gap-3">
+          <span className="text-xs font-semibold uppercase tracking-wider text-slate-300">
+            Envelopes & Categories
+          </span>
+          <button
+            onClick={() => setIsAddingGroup(true)}
+            className="text-xs text-sky-400 hover:text-sky-300 flex items-center gap-1 font-medium px-2 py-0.5 rounded bg-sky-950/50 border border-sky-800/60 hover:bg-sky-900/50 transition-colors cursor-pointer"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>New Category</span>
+          </button>
         </div>
+
+        <div className="hidden md:flex items-center gap-6 shrink-0 text-xs font-semibold uppercase tracking-wider text-slate-400 pr-8">
+          <div className="w-24 text-right">Budgeted Today</div>
+          <div className="w-20 text-right">Logged Today</div>
+          <div className="w-28 text-right">Available</div>
+        </div>
+      </div>
 
         {/* Inline Category Group Creation Panel */}
         {isAddingGroup && (
@@ -654,8 +685,125 @@ export const BudgetView: React.FC = () => {
             </button>
           </div>
         </div>
-
       </div>
+  );
+
+  return (
+    <div className="space-y-6">
+      {/* Ready To Assign Daily Header Banner */}
+      <ReadyToAssignBanner />
+
+      {/* Screen Layout Customization Toolbar */}
+      <div className="flex items-center justify-between px-1">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+            Daily Budget Workspace
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          {isEditingLayout ? (
+            <div className="flex items-center gap-2 animate-in fade-in duration-150">
+              <button
+                type="button"
+                onClick={resetSectionOrder}
+                className="text-xs text-slate-400 hover:text-white px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 transition-colors flex items-center gap-1 cursor-pointer"
+              >
+                <RotateCcw className="w-3 h-3" />
+                <span>Reset Order</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsEditingLayout(false)}
+                className="text-xs font-semibold text-slate-950 px-3 py-1 rounded bg-emerald-400 hover:bg-emerald-300 transition-colors flex items-center gap-1.5 cursor-pointer shadow-sm"
+              >
+                <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                <span>Done Editing</span>
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setIsEditingLayout(true)}
+              className="text-xs text-slate-300 hover:text-white px-2.5 py-1 rounded bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 transition-colors flex items-center gap-1.5 cursor-pointer"
+              title="Move and customize the layout of tabs & sections"
+            >
+              <Sliders className="w-3.5 h-3.5 text-sky-400" />
+              <span>Edit Layout</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Dynamic Moveable Sections */}
+      {sectionOrder.map((sectionKey, index) => {
+        let content: React.ReactNode = null;
+        let title = '';
+
+        if (sectionKey === 'sleep') {
+          content = <SleepScheduleCard />;
+          title = 'Sleep & Night Rest Schedule';
+        } else if (sectionKey === 'buffer') {
+          content = <DailyBufferCard />;
+          title = 'Daily Buffer Cushion';
+        } else if (sectionKey === 'categories') {
+          content = renderCategoriesTable();
+          title = 'Envelopes & Categories';
+        }
+
+        return (
+          <div
+            key={sectionKey}
+            className={`transition-all ${
+              isEditingLayout
+                ? 'p-2.5 rounded-2xl border-2 border-dashed border-sky-500/60 bg-sky-950/20 space-y-2.5'
+                : ''
+            }`}
+          >
+            {isEditingLayout && (
+              <div className="flex items-center justify-between px-3.5 py-2 bg-slate-900 border border-slate-700/80 rounded-lg text-xs shadow-md">
+                <div className="flex items-center gap-2">
+                  <MoveVertical className="w-4 h-4 text-sky-400" />
+                  <span className="font-semibold text-white">{title}</span>
+                  <span className="text-[10px] font-mono text-slate-300 bg-slate-800 px-2 py-0.5 rounded font-medium">
+                    Section {index + 1} of 3
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    disabled={index === 0}
+                    onClick={() => moveSection(index, 'up')}
+                    className={`px-2 py-1 rounded flex items-center gap-1 text-xs font-semibold cursor-pointer transition-colors ${
+                      index === 0
+                        ? 'text-slate-600 bg-slate-950/50 cursor-not-allowed border border-slate-800/40'
+                        : 'text-slate-100 hover:text-white bg-slate-800 hover:bg-slate-700 border border-slate-700'
+                    }`}
+                    title="Move section up"
+                  >
+                    <ArrowUp className="w-3.5 h-3.5" />
+                    <span>Move Up</span>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={index === sectionOrder.length - 1}
+                    onClick={() => moveSection(index, 'down')}
+                    className={`px-2 py-1 rounded flex items-center gap-1 text-xs font-semibold cursor-pointer transition-colors ${
+                      index === sectionOrder.length - 1
+                        ? 'text-slate-600 bg-slate-950/50 cursor-not-allowed border border-slate-800/40'
+                        : 'text-slate-100 hover:text-white bg-slate-800 hover:bg-slate-700 border border-slate-700'
+                    }`}
+                    title="Move section down"
+                  >
+                    <ArrowDown className="w-3.5 h-3.5" />
+                    <span>Move Down</span>
+                  </button>
+                </div>
+              </div>
+            )}
+            {content}
+          </div>
+        );
+      })}
     </div>
   );
 };

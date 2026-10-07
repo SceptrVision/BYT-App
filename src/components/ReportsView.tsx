@@ -60,6 +60,7 @@ export const ReportsView: React.FC = () => {
 
   const sleepBudgeted = daySleep.enabled ? daySleep.targetHours : 0;
   const sleepLogged = daySleep.enabled ? (daySleep.loggedHours || 0) : 0;
+  const targetSleepHours = typeof daySleep.targetSleepHours === 'number' ? daySleep.targetSleepHours : 8.0;
 
   const deepWorkCat = categories.find((c) => c.id === 'cat-deep-work');
   const meetingsCat = categories.find((c) => c.id === 'cat-meetings');
@@ -82,6 +83,26 @@ export const ReportsView: React.FC = () => {
       };
     });
   }, [weekDays, entries]);
+
+  // Weekly Sleep Aggregations
+  const weeklySleepStats = useMemo(() => {
+    let totalPlanned = 0;
+    let totalLogged = 0;
+    weekDays.forEach((d) => {
+      const s = budgets[d.dateStr]?.sleep;
+      if (s?.enabled !== false) {
+        totalPlanned += s?.targetHours ?? 8.0;
+        totalLogged += s?.loggedHours ?? 8.0;
+      }
+    });
+    return {
+      totalPlanned: Math.round(totalPlanned * 10) / 10,
+      totalLogged: Math.round(totalLogged * 10) / 10,
+      avgPlanned: Math.round((totalPlanned / 7) * 10) / 10,
+      avgLogged: Math.round((totalLogged / 7) * 10) / 10,
+      weeklyTarget: Math.round(targetSleepHours * 7 * 10) / 10,
+    };
+  }, [weekDays, budgets, targetSleepHours]);
 
   // WEEKLY AGGREGATIONS (Totals & Daily Averages for all categories and buffer)
   const weeklyCategoryStats = useMemo(() => {
@@ -509,21 +530,38 @@ export const ReportsView: React.FC = () => {
               </div>
 
               <div className="space-y-3.5 text-xs">
-                {/* Sleep Diagnostic: updated to "avoid borrowing" */}
+                {/* Sleep Diagnostic: with configured target for hours slept */}
                 <div className="p-3 rounded-lg bg-slate-950/60 border border-slate-800 flex items-start gap-3">
                   <Moon className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                  <div className="space-y-1">
+                  <div className="space-y-1.5 flex-1">
                     <div className="font-semibold text-slate-200 flex items-center justify-between">
-                      <span>Sleep & Recovery (8h Baseline)</span>
+                      <div className="flex items-center gap-2">
+                        <span>Sleep & Recovery</span>
+                        <span className="text-[11px] font-normal text-slate-400">
+                          (Target: <strong className="text-white font-mono">{formatHours(targetSleepHours, settings.timeFormat)}</strong>)
+                        </span>
+                      </div>
                       <span className="font-mono text-emerald-400">
-                        {formatHours(sleepLogged, settings.timeFormat)} logged ({formatHours(sleepBudgeted, settings.timeFormat)} planned)
+                        {formatHours(sleepLogged, settings.timeFormat)} logged · {formatHours(sleepBudgeted, settings.timeFormat)} planned
                       </span>
                     </div>
-                    <p className="text-slate-400 leading-relaxed">
-                      {sleepBudgeted >= 8 ? (
-                        'Protected: You have allocated 8 hours for sleep today. Avoid borrowing from this envelope to feed overspending in other categories!'
+                    <div className="flex items-center gap-2 text-[11px] font-mono text-slate-400">
+                      <span>Target Progress:</span>
+                      {sleepBudgeted >= targetSleepHours ? (
+                        <span className="text-emerald-400 font-medium">
+                          ✓ On Target ({formatHours(sleepBudgeted, settings.timeFormat)} meets your {formatHours(targetSleepHours, settings.timeFormat)} target)
+                        </span>
                       ) : (
-                        'Warning: You allocated under 8 hours of sleep today. In BYT, robbing sleep causes compounding productivity debt tomorrow.'
+                        <span className="text-amber-400 font-medium">
+                          Deficit of {formatHours(targetSleepHours - sleepBudgeted, settings.timeFormat)} below target
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-slate-400 leading-relaxed text-[11px]">
+                      {sleepBudgeted >= targetSleepHours ? (
+                        `Protected: You allocated ${formatHours(sleepBudgeted, settings.timeFormat)} for sleep today, satisfying your ${formatHours(targetSleepHours, settings.timeFormat)} target. Avoid borrowing from rest to cover other envelopes!`
+                      ) : (
+                        `Notice: Planned sleep (${formatHours(sleepBudgeted, settings.timeFormat)}) is below your target of ${formatHours(targetSleepHours, settings.timeFormat)}. Avoid borrowing from sleep to feed daytime overspending.`
                       )}
                     </p>
                   </div>
@@ -661,6 +699,59 @@ export const ReportsView: React.FC = () => {
                 </div>
                 <div className="text-xs font-mono text-slate-400">
                   Avg: {formatHours(weeklyBufferStats.avgUnused, settings.timeFormat)} / day
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Weekly Sleep & Recovery Target and Metrics Card */}
+          <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-5 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <Moon className="w-4 h-4 text-emerald-400" />
+                <h3 className="text-sm font-semibold text-white">
+                  Weekly Sleep & Recovery: Target vs Actual
+                </h3>
+              </div>
+              <span className="text-xs text-slate-400 font-mono">
+                Nightly Target: {formatHours(targetSleepHours, settings.timeFormat)}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="bg-slate-950/70 border border-slate-800 rounded-lg p-3.5 space-y-1">
+                <div className="text-[11px] font-mono uppercase text-sky-400">
+                  Target for Hours Slept (Weekly)
+                </div>
+                <div className="text-2xl font-bold font-mono text-white">
+                  {formatHours(weeklySleepStats.weeklyTarget, settings.timeFormat)}
+                </div>
+                <div className="text-xs font-mono text-slate-400">
+                  Target: {formatHours(targetSleepHours, settings.timeFormat)} / night
+                </div>
+              </div>
+
+              <div className="bg-slate-950/70 border border-slate-800 rounded-lg p-3.5 space-y-1">
+                <div className="text-[11px] font-mono uppercase text-slate-300">
+                  Weekly Sleep Planned
+                </div>
+                <div className="text-2xl font-bold font-mono text-slate-200">
+                  {formatHours(weeklySleepStats.totalPlanned, settings.timeFormat)}
+                </div>
+                <div className="text-xs font-mono text-slate-400">
+                  Avg: {formatHours(weeklySleepStats.avgPlanned, settings.timeFormat)} / night
+                </div>
+              </div>
+
+              <div className="bg-slate-950/70 border border-slate-800 rounded-lg p-3.5 space-y-1">
+                <div className="text-[11px] font-mono uppercase text-emerald-400">
+                  Weekly Sleep Logged
+                </div>
+                <div className="text-2xl font-bold font-mono text-emerald-300">
+                  {formatHours(weeklySleepStats.totalLogged, settings.timeFormat)}
+                </div>
+                <div className="text-xs font-mono text-slate-400">
+                  Avg: {formatHours(weeklySleepStats.avgLogged, settings.timeFormat)} / night
                 </div>
               </div>
             </div>

@@ -22,6 +22,15 @@ export const SleepScheduleCard: React.FC = () => {
 
   const [showPresets, setShowPresets] = useState(false);
 
+  const targetSleepHours = typeof daySleep.targetSleepHours === 'number' ? daySleep.targetSleepHours : 8.0;
+
+  const handleTargetSleepHoursChange = (hours: number) => {
+    const clamped = Math.max(4, Math.min(14, Math.round(hours * 10) / 10));
+    updateSleepSchedule({
+      targetSleepHours: clamped,
+    });
+  };
+
   const handleBedtimeChange = (newBedtime: string) => {
     const targetHours = calculateSleepHoursFromTimes(newBedtime, daySleep.wakeTime);
     updateSleepSchedule({
@@ -44,6 +53,7 @@ export const SleepScheduleCard: React.FC = () => {
       bedtime,
       wakeTime,
       targetHours,
+      targetSleepHours: targetHours,
     });
     setShowPresets(false);
   };
@@ -56,6 +66,8 @@ export const SleepScheduleCard: React.FC = () => {
       updateSleepSchedule({ loggedHours: daySleep.targetHours });
     }
   };
+
+  const sleepDiff = Math.round((daySleep.targetHours - targetSleepHours) * 10) / 10;
 
   return (
     <div className="bg-gradient-to-r from-slate-900 via-[#111625] to-slate-900 border border-slate-800 rounded-xl p-4 sm:p-5 shadow-sm relative overflow-hidden transition-all">
@@ -151,6 +163,35 @@ export const SleepScheduleCard: React.FC = () => {
               </span>
             </div>
 
+            {/* Target for Hours Slept Input */}
+            <div className="bg-slate-950/80 border border-slate-800 rounded-lg p-2 flex items-center gap-2">
+              <div className="flex items-center gap-1.5 text-xs text-slate-400">
+                <Clock className="w-3.5 h-3.5 text-indigo-400" />
+                <span className="text-[10px] uppercase font-mono tracking-wider">Sleep Target</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => handleTargetSleepHoursChange(targetSleepHours - 0.5)}
+                  className="w-5 h-5 bg-slate-900 hover:bg-slate-800 text-slate-300 rounded text-xs flex items-center justify-center font-mono cursor-pointer"
+                  title="Decrease target hours slept by 30m"
+                >
+                  -
+                </button>
+                <span className="font-mono text-xs font-semibold text-white px-1">
+                  {formatHours(targetSleepHours, settings.timeFormat)}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => handleTargetSleepHoursChange(targetSleepHours + 0.5)}
+                  className="w-5 h-5 bg-slate-900 hover:bg-slate-800 text-slate-300 rounded text-xs flex items-center justify-center font-mono cursor-pointer"
+                  title="Increase target hours slept by 30m"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+
             {/* Calculated Sleep Target & Logged State */}
             <div className="bg-slate-950/80 border border-slate-800 rounded-lg px-3 py-1.5 text-right flex flex-col justify-center min-w-[110px]">
               <span className="text-[10px] uppercase font-mono text-sky-400 font-semibold tracking-wider">
@@ -158,6 +199,13 @@ export const SleepScheduleCard: React.FC = () => {
               </span>
               <span className="text-base font-bold font-mono text-white tabular-nums">
                 {formatHours(daySleep.targetHours, settings.timeFormat)}
+              </span>
+              <span className="text-[10px] font-mono text-slate-400">
+                {sleepDiff === 0
+                  ? 'Meets target'
+                  : sleepDiff > 0
+                  ? `+${formatHours(sleepDiff, settings.timeFormat)} vs target`
+                  : `-${formatHours(Math.abs(sleepDiff), settings.timeFormat)} vs target`}
               </span>
             </div>
 

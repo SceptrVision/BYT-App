@@ -32,10 +32,12 @@ export const ReallocateModal: React.FC = () => {
     if (isReallocateModalOpen) {
       setErrorMsg('');
       if (reallocateTargetCategory === BUFFER_ID) {
-        setToCatId(BUFFER_ID);
-        // Default source to an envelope with surplus
-        const surplusCat = categories.find((c) => (dayAvailable[c.id] || 0) > 0.4);
-        if (surplusCat) setFromCatId(surplusCat.id);
+        // Reallocate excess hours FROM Buffer INTO an active envelope
+        setFromCatId(BUFFER_ID);
+        const targetEnvelope = categories.find((c) => c.id === 'cat-deep-work') || categories[0];
+        if (targetEnvelope) setToCatId(targetEnvelope.id);
+        const defaultAmt = dayBuffer >= 0.75 ? '0.75' : dayBuffer > 0 ? (Math.round(dayBuffer * 10) / 10).toString() : '0.5';
+        setHoursAmount(defaultAmt);
       } else if (reallocateTargetCategory) {
         setToCatId(reallocateTargetCategory);
         if (isTargetOverspent) {
